@@ -15,6 +15,9 @@
 package org.mindrot.jbcrypt;
 
 import java.io.UnsupportedEncodingException;
+import java.security.DigestException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 
 /**
@@ -335,6 +338,12 @@ public class BCrypt {
 		0xb74e6132, 0xce77e25b, 0x578fdfe3, 0x3ac372e6
 	};
 
+	// OpenBSD IV: "OxychromaticBlowfishSwatDynamite" in big endian
+	private static final int[] openbsd_iv = new int[] {
+			0x4f787963, 0x68726f6d, 0x61746963, 0x426c6f77,
+			0x66697368, 0x53776174, 0x44796e61, 0x6d697465,
+	};
+
 	// bcrypt IV: "OrpheanBeholderScryDoubt". The C implementation calls
 	// this "ciphertext", but it is really plaintext or an IV. We keep
 	// the name to make code comparison easier.
@@ -593,6 +602,89 @@ public class BCrypt {
 			encipher(lr, 0);
 			S[i] = lr[0];
 			S[i + 1] = lr[1];
+		}
+	}
+
+	/**
+	 * Compatibility with new OpenBSD function.
+	 */
+	public void hash(byte[] hpass, byte[] hsalt, byte[] output) {
+		init_key();
+		ekskey(hsalt, hpass);
+		for (int i = 0; i < 64; i++) {
+			key(hsalt);
+			key(hpass);
+		}
+
+		int[] buf = new int[openbsd_iv.length];
+		System.arraycopy(openbsd_iv, 0, buf, 0, openbsd_iv.length);
+		for (int i = 0; i < 8; i += 2) {
+			for (int j = 0; j < 64; j++) {
+				encipher(buf, i);
+			}
+		}
+
+		for (int i = 0, j = 0; i < buf.length; i++) {
+			// Output of this is little endian
+			output[j++] = (byte)(buf[i] & 0xff);
+			output[j++] = (byte)((buf[i] >> 8) & 0xff);
+			output[j++] = (byte)((buf[i] >> 16) & 0xff);
+			output[j++] = (byte)((buf[i] >> 24) & 0xff);
+		}
+	}
+
+	/**
+	 * Compatibility with new OpenBSD function.
+	 */
+	public void pbkdf(byte[] password, byte[] salt, int rounds, byte[] output) {
+		try {
+			MessageDigest sha512 = MessageDigest.getInstance("SHA-512");
+
+			int nblocks = (output.length + 31) / 32;
+			byte[] hpass = sha512.digest(password);
+
+			byte[] hsalt = new byte[64];
+			byte[] block_b = new byte[4];
+			byte[] out = new byte[32];
+			byte[] tmp = new byte[32];
+			for (int block = 1; block <= nblocks; block++) {
+				// Block count is in big endian
+				block_b[0] = (byte) ((block >> 24) & 0xFF);
+				block_b[1] = (byte) ((block >> 16) & 0xFF);
+				block_b[2] = (byte) ((block >> 8) & 0xFF);
+				block_b[3] = (byte) (block & 0xFF);
+
+				sha512.reset();
+				sha512.update(salt);
+				sha512.update(block_b);
+				sha512.digest(hsalt, 0, hsalt.length);
+
+				hash(hpass, hsalt, out);
+				System.arraycopy(out, 0, tmp, 0, out.length);
+
+				for (int round = 1; round < rounds; round++) {
+					sha512.reset();
+					sha512.update(tmp);
+					sha512.digest(hsalt, 0, hsalt.length);
+
+					hash(hpass, hsalt, tmp);
+
+					for (int i = 0; i < tmp.length; i++) {
+						out[i] ^= tmp[i];
+					}
+				}
+
+				for (int i = 0; i < out.length; i++) {
+					int idx = i * nblocks + (block - 1);
+					if (idx < output.length) {
+						output[idx] = out[i];
+					}
+				}
+			}
+		} catch (DigestException e) {
+			throw new RuntimeException(e);
+		} catch (NoSuchAlgorithmException e) {
+			throw new RuntimeException(e);
 		}
 	}
 
