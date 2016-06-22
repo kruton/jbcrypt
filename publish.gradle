@@ -1,6 +1,7 @@
 apply plugin: 'maven'
+apply plugin: 'maven-publish'
 
-task sourcesJar(type: Jar, dependsOn: classes) { 
+task sourceJar(type: Jar, dependsOn: classes) {
   classifier = 'sources'
   from sourceSets.main.allSource
 }
@@ -11,7 +12,22 @@ task javadocJar(type: Jar, dependsOn: javadoc) {
 }
 
 artifacts { 
-  archives sourcesJar, javadocJar
+  archives jar, sourceJar, javadocJar
+}
+
+ext.isSnapshot = (VersionNumber.parse(rootProject.version).qualifier == "SNAPSHOT")
+ext.isOfficialSdk = (System.env.TRAVIS_JDK_VERSION == officialJdk)
+ext.isMainline = (System.env.TRAVIS_PULL_REQUEST == "false")
+
+publishing {
+  publications {
+    jBCrypt(MavenPublication) {
+      from components.java
+      artifact sourceJar
+      artifact javadocJar
+      groupId 'org.connectbot'
+    }
+  }
 }
 
 uploadArchives {
@@ -80,7 +96,26 @@ bintray {
   }
 }
 
+//Bintray is for official releases
 bintrayUpload.onlyIf {
-  System.env.TRAVIS_JDK_VERSION == officialJdk &&
-  !(version ==~ /.*SNAPSHOT/)
+  project.isOfficialSdk && !project.isSnapshot && project.isMainline
+}
+
+artifactory {
+  contextUrl = 'https://oss.jfrog.org/artifactory'
+  publish {
+    repository {
+      repoKey = 'oss-snapshot-local'
+      username = bintrayUser
+      password = bintrayApiKey
+    }
+    defaults {
+      publications('jBCrypt')
+    }
+  }
+}
+
+//Artifactory is for publishing snapshots
+artifactoryPublish.onlyIf {
+  project.isOfficialSdk && project.isSnapshot && project.isMainline
 }

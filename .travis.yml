@@ -4,7 +4,7 @@ jdk:
 - oraclejdk7
 - openjdk7
 after_success:
-- "./gradlew bintrayUpload"
+- "./gradlew bintrayUpload artifactoryPublish"
 env:
   global:
   - bintrayUser=kruton
