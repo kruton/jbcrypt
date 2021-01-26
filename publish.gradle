@@ -16,8 +16,7 @@ artifacts {
 }
 
 ext.isSnapshot = (org.gradle.util.VersionNumber.parse(rootProject.version).qualifier == "SNAPSHOT")
-ext.isOfficialSdk = (System.env.TRAVIS_JDK_VERSION == officialJdk)
-ext.isMainline = (System.env.TRAVIS_PULL_REQUEST == "false")
+ext.isMainline = (System.env.CI_EVENT_NAME == "push")
 
 publishing {
   publications {
@@ -100,7 +99,7 @@ bintray {
 
 //Bintray is for official releases
 bintrayUpload.onlyIf {
-  project.isOfficialSdk && !project.isSnapshot && project.isMainline
+  !project.isSnapshot && project.isMainline
 }
 
 artifactory {
@@ -119,5 +118,5 @@ artifactory {
 
 //Artifactory is for publishing snapshots
 artifactoryPublish.onlyIf {
-  project.isOfficialSdk && project.isSnapshot && project.isMainline
+  project.isSnapshot && project.isMainline
 }
