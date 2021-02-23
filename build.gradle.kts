@@ -23,7 +23,6 @@ plugins {
 }
 
 group = "org.connectbot"
-version = "1.0.1-SNAPSHOT"
 
 val gitHubUrl = "https://github.com/kruton/jbcrypt"
 
