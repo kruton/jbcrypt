@@ -29,11 +29,10 @@ jobs:
     - name: Upload to Sonatype
       if: github.event_name == 'push' && github.ref == 'refs/heads/master' && matrix.java == '11'
       run: |
-        echo "${{secrets.GPG_PRIVATE_KEY }}" > ~/.gradle/secring.gpg.b64
+        echo "${{ secrets.MAVEN_GPG_PRIVATE_KEY }}" > ~/.gradle/secring.gpg.b64
         base64 -d ~/.gradle/secring.gpg.b64 > ~/.gradle/secring.gpg
         ./gradlew publishToSonatype closeAndReleaseSonatypeStagingRepository -PsonatypeUsername=${SONATYPE_USERNAME} -PsonatypePassword=${SONATYPE_PASSWORD} -Psigning.keyId=${GPG_KEYID} -Psigning.secretKeyRingFile=$(echo ~/.gradle/secring.gpg) -Psigning.password=${GPG_PASSWORD}
       env:
-        GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
         GPG_KEYID: ${{ secrets.MAVEN_GPG_KEYID }}
         GPG_PASSWORD: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
         SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
